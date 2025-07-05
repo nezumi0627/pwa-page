@@ -1,74 +1,53 @@
-// sw.js
-const CACHE_NAME = 'pwa-cache-v1'
+let APP_VERSION = 'v0'; // デフォルト（受信前）
+let CACHE_NAME = 'pwa-cache-' + APP_VERSION;
+
 const urlsToCache = [
-  '/',
+  '/pwa-page/',
   '/pwa-page/index.html',
   '/pwa-page/manifest.json',
-  // 必要に応じて追加
-]
+  '/pwa-page/version.js'
+];
 
-let appVersion = null // クライアントから受け取ったアプリバージョン保持用（任意）
+self.addEventListener('message', event => {
+  if (event.data?.type === 'version') {
+    APP_VERSION = event.data.version;
+    CACHE_NAME = 'pwa-cache-' + APP_VERSION;
+    console.log('[SW] 受信バージョン:', APP_VERSION);
+  }
+});
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache =>
-        Promise.all(
-          urlsToCache.map(url =>
-            fetch(new Request(url, { cache: 'reload' }))
-              .then(response => cache.put(url, response))
-          )
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.all(
+        urlsToCache.map(url =>
+          fetch(new Request(url, { cache: 'reload' }))
+            .then(res => res.ok && cache.put(url, res))
         )
       )
-      .then(() => self.skipWaiting())
-  )
-})
+    )
+  );
+});
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys()
-      .then(keys =>
-        Promise.all(
-          keys.filter(key => key !== CACHE_NAME)
-            .map(key => caches.delete(key))
-        )
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
       )
-      .then(() => self.clients.claim())
-  )
-})
+    ).then(() => self.clients.claim())
+  );
+});
 
 self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
-      .then(response => {
-        const responseClone = response.clone()
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone))
-        return response
+      .then(res => {
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, resClone));
+        return res;
       })
       .catch(() => caches.match(event.request))
-  )
-})
-
-self.addEventListener('message', event => {
-  if (typeof event.data === 'object' && event.data.type === 'version') {
-    appVersion = event.data.version
-    console.log(`受信したアプリバージョン: ${appVersion}`)
-  }
-
-  if (event.data === 'update') {
-    caches.open(CACHE_NAME)
-      .then(cache =>
-        Promise.all(
-          urlsToCache.map(url =>
-            fetch(new Request(url, { cache: 'reload' }))
-              .then(response => cache.put(url, response))
-          )
-        )
-      )
-      .then(async () => {
-        const clients = await self.clients.matchAll()
-        clients.forEach(client => client.postMessage('update-complete'))
-      })
-      .catch(err => console.error('キャッシュ更新エラー:', err))
-  }
-})
+  );
+});
