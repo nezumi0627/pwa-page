@@ -15,6 +15,10 @@
   <p id="isPwa">PWA成立: 判定中</p>
   <p id="displayMode">現在の表示モード: 判定中</p>
 
+  <!-- ここから追加 -->
+  <button id="updateCacheBtn">キャッシュを更新する</button>
+  <!-- ここまで追加 -->
+
   <script>
     const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost';
     const manifestOK = !!document.querySelector('link[rel="manifest"]');
@@ -30,8 +34,22 @@
     // Service Worker 登録
     if (swOK) {
       navigator.serviceWorker.register('/pwa-page/sw.js')
-        .then(() => {
+        .then(registration => {
           document.getElementById('isPwa').textContent = 'PWA成立: ✅ Yes（SW登録成功）';
+
+          // 更新検知
+          registration.onupdatefound = () => {
+            console.log('アップデートがあります！');
+            registration.update();
+          };
+
+          // ボタンでキャッシュ更新メッセージ送信
+          document.getElementById('updateCacheBtn').addEventListener('click', () => {
+            if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage('update');
+              console.log('キャッシュ更新メッセージを送信しました');
+            }
+          });
         })
         .catch(() => {
           document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW登録失敗）';
