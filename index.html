@@ -11,25 +11,50 @@
   <p id="https">HTTPS: 判定中</p>
   <p id="manifest">Manifest: 判定中</p>
   <p id="sw">Service Worker: 判定中</p>
-  <p id="result">全体結果: 判定中</p>
+  <p id="result">全体条件: 判定中</p>
+  <p id="isPwa">PWA成立: 判定中</p>
+  <p id="displayMode">現在の表示モード: 判定中</p>
 
   <script>
-    const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
-    const hasManifest = !!document.querySelector('link[rel="manifest"]');
-    const hasSW = 'serviceWorker' in navigator;
+    const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost';
+    const manifestOK = !!document.querySelector('link[rel="manifest"]');
+    const swOK = 'serviceWorker' in navigator;
 
-    document.getElementById('https').textContent = 'HTTPS: ' + (isHttps ? 'OK' : 'NG');
-    document.getElementById('manifest').textContent = 'Manifest: ' + (hasManifest ? 'OK' : 'NG');
-    document.getElementById('sw').textContent = 'Service Worker: ' + (hasSW ? 'OK' : 'NG');
+    document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG');
+    document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG');
+    document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG');
 
-    const allOK = isHttps && hasManifest && hasSW;
-    document.getElementById('result').textContent = '全体結果: ' + (allOK ? 'PWA対応済み' : '未対応');
+    const allOK = httpsOK && manifestOK && swOK;
+    document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です');
 
-    if (hasSW) {
+    // Service Worker 登録
+    if (swOK) {
       navigator.serviceWorker.register('/pwa-page/sw.js')
-        .then(() => console.log('✅ Service Worker registered'))
-        .catch(err => console.error('❌ Service Worker registration failed:', err));
+        .then(() => {
+          document.getElementById('isPwa').textContent = 'PWA成立: ✅ Yes（SW登録成功）';
+        })
+        .catch(() => {
+          document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW登録失敗）';
+        });
+    } else {
+      document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW未対応）';
     }
+
+    // PWAとして開かれているか判定
+    function getDisplayMode() {
+      let mode = 'browser（通常のタブ）';
+
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        mode = 'standalone（PWAとしてインストール起動）';
+      } else if (navigator.standalone) {
+        mode = 'standalone（iOS Safari）';
+      }
+
+      document.getElementById('displayMode').textContent = '現在の表示モード: ✅ ' + mode;
+    }
+
+    // 読み込み時にチェック
+    window.addEventListener('load', getDisplayMode);
   </script>
 </body>
 </html>
