@@ -2,96 +2,107 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>PWA判定</title>
+  <title>PWA判定と更新通知</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="manifest" href="/pwa-page/manifest.json" />
   <script src="/pwa-page/version.js" defer></script>
 </head>
 <body>
-  <h1>PWAの判定結果</h1>
+  <h1>PWAの判定結果と更新</h1>
   <p id="https">HTTPS: 判定中</p>
   <p id="manifest">Manifest: 判定中</p>
   <p id="sw">Service Worker: 判定中</p>
   <p id="result">全体条件: 判定中</p>
   <p id="isPwa">PWA成立: 判定中</p>
   <p id="displayMode">現在の表示モード: 判定中</p>
-  <p id="appVersion">アプリバージョン: 読み込み中...</p>
+  <p id="appVersion">アプリバージョン: 判定中</p>
 
-  <button id="updateCacheBtn">キャッシュを更新する</button>
+  <button id="checkUpdate">更新をチェック</button>
   <p id="updateStatus"></p>
 
   <script>
     window.addEventListener('DOMContentLoaded', () => {
+      // version.jsの読み込み確認
       if (typeof APP_VERSION === 'undefined') {
-        document.getElementById('appVersion').textContent = 'アプリバージョン: ❌ version.jsが読み込まれていません'
-        console.error('version.jsが読み込まれていません')
-        return
+        document.getElementById('appVersion').textContent = 'アプリバージョン: ❌ version.jsが読み込まれていません';
+        return;
       }
+      document.getElementById('appVersion').textContent = `アプリバージョン: ${APP_VERSION}`;
 
-      document.getElementById('appVersion').textContent = `アプリバージョン: ${APP_VERSION}`
+      const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost';
+      const manifestOK = !!document.querySelector('link[rel="manifest"]');
+      const swOK = 'serviceWorker' in navigator;
 
-      const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost'
-      document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG')
+      document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG');
+      document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG');
+      document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG');
 
-      const manifestOK = !!document.querySelector('link[rel="manifest"]')
-      document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG')
-
-      const swOK = 'serviceWorker' in navigator
-      document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG')
-
-      const allOK = httpsOK && manifestOK && swOK
-      document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です')
+      const allOK = httpsOK && manifestOK && swOK;
+      document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です');
 
       if (swOK) {
-        navigator.serviceWorker.register('/pwa-page/sw.js')
-          .then(registration => {
-            document.getElementById('isPwa').textContent = 'PWA成立: ✅ Yes（SW登録成功）'
+        navigator.serviceWorker.getRegistration().then(existing => {
+          const isFirstTime = !existing;
 
-            registration.onupdatefound = () => {
-              console.log('アップデートがあります！')
-              registration.update()
+          navigator.serviceWorker.register('/pwa-page/sw.js').then(registration => {
+            document.getElementById('isPwa').textContent = 'PWA成立: ✅ SW登録成功';
+
+            if (!isFirstTime) {
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                  newWorker.onstatechange = e => {
+                    if (e.target.state === 'installed' && navigator.serviceWorker.controller) {
+                      alert('更新がインストールされました。再起動してください。');
+                    }
+                  }
+                }
+              });
             }
+          });
+        });
 
-            if (navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({ type: 'version', version: APP_VERSION })
+        document.getElementById('checkUpdate').addEventListener('click', () => {
+          navigator.serviceWorker.getRegistration().then(registration => {
+            if (!registration) return;
+
+            if (registration.waiting) {
+              alert('インストール済みの更新があります。アプリを再起動してください。');
+              document.getElementById('updateStatus').textContent = '更新あり: 再起動してください';
+            } else {
+              registration.update().then(() => {
+                const installing = registration.installing;
+                if (installing) {
+                  installing.onstatechange = e => {
+                    if (e.target.state === 'installed') {
+                      alert('更新がインストールされました。再起動してください。');
+                      document.getElementById('updateStatus').textContent = '更新完了: 再起動してください';
+                    }
+                  }
+                } else {
+                  alert('更新はありませんでした。');
+                  document.getElementById('updateStatus').textContent = '更新なし';
+                }
+              });
             }
-
-            document.getElementById('updateCacheBtn').addEventListener('click', () => {
-              if (navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage('update')
-                document.getElementById('updateStatus').textContent = '⚙️ 更新処理を開始しました...'
-                console.log('キャッシュ更新メッセージを送信しました')
-              }
-            })
-
-            navigator.serviceWorker.addEventListener('message', event => {
-              if (event.data === 'update-complete') {
-                document.getElementById('updateStatus').textContent = '✅ キャッシュの更新が完了しました'
-                console.log('キャッシュ更新完了のメッセージを受信しました')
-              }
-            })
-          })
-          .catch(() => {
-            document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW登録失敗）'
-          })
+          });
+        });
       } else {
-        document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW未対応）'
+        document.getElementById('isPwa').textContent = 'PWA成立: ❌ SW未対応';
       }
 
       function getDisplayMode() {
-        let mode = 'browser（通常のタブ）'
-
+        let mode = 'browser（通常のタブ）';
         if (window.matchMedia('(display-mode: standalone)').matches) {
-          mode = 'standalone（PWAとしてインストール起動）'
+          mode = 'standalone（PWAとして起動）';
         } else if (navigator.standalone) {
-          mode = 'standalone（iOS Safari）'
+          mode = 'standalone（iOS）';
         }
-
-        document.getElementById('displayMode').textContent = '現在の表示モード: ✅ ' + mode
+        document.getElementById('displayMode').textContent = '現在の表示モード: ✅ ' + mode;
       }
 
-      window.addEventListener('load', getDisplayMode)
-    })
+      getDisplayMode();
+    });
   </script>
 </body>
 </html>
