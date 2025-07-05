@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>PWA判定</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="manifest" href="/pwa-page/manifest.json">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/pwa-page/manifest.json" />
   <script src="/pwa-page/version.js" defer></script>
 </head>
 <body>
@@ -21,72 +21,77 @@
   <p id="updateStatus"></p>
 
   <script>
-    // version.js 読み込み完了を待つためdeferを指定しているのでここでAPP_VERSIONは使える想定
-
-    const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost'
-    const manifestOK = !!document.querySelector('link[rel="manifest"]')
-    const swOK = 'serviceWorker' in navigator
-
-    document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG')
-    document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG')
-    document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG')
-
-    const allOK = httpsOK && manifestOK && swOK
-    document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です')
-
-    // アプリバージョン表示
-    document.getElementById('appVersion').textContent = `アプリバージョン: ${APP_VERSION}`
-
-    if (swOK) {
-      navigator.serviceWorker.register('/pwa-page/sw.js')
-        .then(registration => {
-          document.getElementById('isPwa').textContent = 'PWA成立: ✅ Yes（SW登録成功）'
-
-          registration.onupdatefound = () => {
-            console.log('アップデートがあります！')
-            registration.update()
-          }
-
-          // 登録後にバージョン情報を送信
-          if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'version', version: APP_VERSION })
-          }
-
-          document.getElementById('updateCacheBtn').addEventListener('click', () => {
-            if (navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage('update')
-              document.getElementById('updateStatus').textContent = '⚙️ 更新処理を開始しました...'
-              console.log('キャッシュ更新メッセージを送信しました')
-            }
-          })
-
-          navigator.serviceWorker.addEventListener('message', event => {
-            if (event.data === 'update-complete') {
-              document.getElementById('updateStatus').textContent = '✅ キャッシュの更新が完了しました'
-              console.log('キャッシュ更新完了のメッセージを受信しました')
-            }
-          })
-        })
-        .catch(() => {
-          document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW登録失敗）'
-        })
-    } else {
-      document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW未対応）'
-    }
-
-    function getDisplayMode() {
-      let mode = 'browser（通常のタブ）'
-
-      if (window.matchMedia('(display-mode: standalone)').matches) {
-        mode = 'standalone（PWAとしてインストール起動）'
-      } else if (navigator.standalone) {
-        mode = 'standalone（iOS Safari）'
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof APP_VERSION === 'undefined') {
+        document.getElementById('appVersion').textContent = 'アプリバージョン: ❌ version.jsが読み込まれていません'
+        console.error('version.jsが読み込まれていません')
+        return
       }
 
-      document.getElementById('displayMode').textContent = '現在の表示モード: ✅ ' + mode
-    }
+      document.getElementById('appVersion').textContent = `アプリバージョン: ${APP_VERSION}`
 
-    window.addEventListener('load', getDisplayMode)
+      const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost'
+      document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG')
+
+      const manifestOK = !!document.querySelector('link[rel="manifest"]')
+      document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG')
+
+      const swOK = 'serviceWorker' in navigator
+      document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG')
+
+      const allOK = httpsOK && manifestOK && swOK
+      document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です')
+
+      if (swOK) {
+        navigator.serviceWorker.register('/pwa-page/sw.js')
+          .then(registration => {
+            document.getElementById('isPwa').textContent = 'PWA成立: ✅ Yes（SW登録成功）'
+
+            registration.onupdatefound = () => {
+              console.log('アップデートがあります！')
+              registration.update()
+            }
+
+            if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({ type: 'version', version: APP_VERSION })
+            }
+
+            document.getElementById('updateCacheBtn').addEventListener('click', () => {
+              if (navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage('update')
+                document.getElementById('updateStatus').textContent = '⚙️ 更新処理を開始しました...'
+                console.log('キャッシュ更新メッセージを送信しました')
+              }
+            })
+
+            navigator.serviceWorker.addEventListener('message', event => {
+              if (event.data === 'update-complete') {
+                document.getElementById('updateStatus').textContent = '✅ キャッシュの更新が完了しました'
+                console.log('キャッシュ更新完了のメッセージを受信しました')
+              }
+            })
+          })
+          .catch(() => {
+            document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW登録失敗）'
+          })
+      } else {
+        document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW未対応）'
+      }
+
+      function getDisplayMode() {
+        let mode = 'browser（通常のタブ）'
+
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+          mode = 'standalone（PWAとしてインストール起動）'
+        } else if (navigator.standalone) {
+          mode = 'standalone（iOS Safari）'
+        }
+
+        document.getElementById('displayMode').textContent = '現在の表示モード: ✅ ' + mode
+      }
+
+      window.addEventListener('load', getDisplayMode)
+    })
   </script>
 </body>
 </html>

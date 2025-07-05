@@ -1,3 +1,4 @@
+// sw.js
 const CACHE_NAME = 'pwa-cache-v1'
 const urlsToCache = [
   '/',
@@ -6,17 +7,19 @@ const urlsToCache = [
   // 必要に応じて追加
 ]
 
-let appVersion = null  // 受け取ったアプリバージョンを保持（任意）
+let appVersion = null // クライアントから受け取ったアプリバージョン保持用（任意）
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => Promise.all(
-        urlsToCache.map(url =>
-          fetch(new Request(url, { cache: 'reload' }))
-            .then(response => cache.put(url, response))
+      .then(cache =>
+        Promise.all(
+          urlsToCache.map(url =>
+            fetch(new Request(url, { cache: 'reload' }))
+              .then(response => cache.put(url, response))
+          )
         )
-      ))
+      )
       .then(() => self.skipWaiting())
   )
 })
