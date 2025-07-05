@@ -2,32 +2,46 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
+  <title>PWA判定</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PWA更新テスト</title>
   <link rel="manifest" href="/pwa-page/manifest.json" />
 </head>
 <body>
-  <h1>PWAバージョン確認</h1>
-  <p id="version">バージョン: 読み込み中...</p>
-  <p id="displayMode">表示モード: 判定中...</p>
-  <p id="updateStatus"></p>
-  <button id="updateCheck">更新をチェック</button>
+  <h1>PWAの判定結果</h1>
+
+  <p id="appVersion">アプリバージョン: 判定中</p>
+  <p id="cacheName">キャッシュ名: 判定中</p>
+  <p id="https">HTTPS: 判定中</p>
+  <p id="manifest">Manifest: 判定中</p>
+  <p id="sw">Service Worker: 判定中</p>
+  <p id="result">全体条件: 判定中</p>
+  <p id="displayMode">現在の表示モード: 判定中</p>
 
   <script src="/pwa-page/version.js"></script>
   <script>
-    document.getElementById('version').textContent = 'バージョン: ' + APP_VERSION;
+    window.addEventListener('load', () => {
+      if (typeof APP_VERSION === 'undefined') {
+        document.getElementById('appVersion').textContent = 'アプリバージョン: ❌ version.jsが読み込まれていません';
+        return;
+      }
 
-    function getDisplayMode() {
-      let mode = 'ブラウザ表示';
-      if (window.matchMedia('(display-mode: standalone)').matches) mode = 'PWA表示';
-      else if (navigator.standalone) mode = 'iOS PWA表示';
-      document.getElementById('displayMode').textContent = '表示モード: ' + mode;
-    }
+      const cacheName = 'pwa-cache-' + APP_VERSION;
+      document.getElementById('appVersion').textContent = `アプリバージョン: ✅ ${APP_VERSION}`;
+      document.getElementById('cacheName').textContent = `キャッシュ名: ✅ ${cacheName}`;
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/pwa-page/sw.js')
-        .then(reg => {
-          // バージョンをSWに送信
+      const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost';
+      const manifestOK = !!document.querySelector('link[rel="manifest"]');
+      const swOK = 'serviceWorker' in navigator;
+
+      document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG');
+      document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG');
+      document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG');
+
+      const allOK = httpsOK && manifestOK && swOK;
+      document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です');
+
+      if (swOK) {
+        navigator.serviceWorker.register('/pwa-page/sw.js').then(registration => {
           if (navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({
               type: 'version',
@@ -35,31 +49,33 @@
             });
           }
 
-          // 更新通知イベント
-          reg.addEventListener('updatefound', () => {
-            const newSW = reg.installing;
+          registration.addEventListener('updatefound', () => {
+            const newSW = registration.installing;
             if (newSW) {
               newSW.addEventListener('statechange', e => {
                 if (e.target.state === 'installed') {
-                  alert('新しいバージョンがインストールされました。再起動してください。');
+                  alert('新しいバージョンがインストールされました。アプリを再起動してください。');
                 }
               });
             }
           });
-
-          // 更新ボタン
-          document.getElementById('updateCheck').onclick = () => {
-            reg.update().then(() => {
-              document.getElementById('updateStatus').textContent = '✅ 更新確認を実行しました';
-            });
-          };
-        })
-        .catch(err => {
-          console.error('SW登録失敗:', err);
+        }).catch(() => {
+          console.warn('Service Worker登録に失敗しました');
         });
-    }
+      }
 
-    window.addEventListener('load', getDisplayMode);
+      const getDisplayMode = () => {
+        let mode = 'ブラウザタブ';
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+          mode = 'PWA (standalone)';
+        } else if (navigator.standalone) {
+          mode = 'PWA (iOS)';
+        }
+        document.getElementById('displayMode').textContent = `現在の表示モード: ✅ ${mode}`;
+      };
+
+      getDisplayMode();
+    });
   </script>
 </body>
 </html>
