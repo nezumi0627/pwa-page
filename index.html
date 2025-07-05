@@ -5,6 +5,7 @@
   <title>PWA判定</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="/pwa-page/manifest.json">
+  <script src="/pwa-page/version.js" defer></script>
 </head>
 <body>
   <h1>PWAの判定結果</h1>
@@ -14,67 +15,78 @@
   <p id="result">全体条件: 判定中</p>
   <p id="isPwa">PWA成立: 判定中</p>
   <p id="displayMode">現在の表示モード: 判定中</p>
+  <p id="appVersion">アプリバージョン: 読み込み中...</p>
 
   <button id="updateCacheBtn">キャッシュを更新する</button>
   <p id="updateStatus"></p>
 
   <script>
-    const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost';
-    const manifestOK = !!document.querySelector('link[rel="manifest"]');
-    const swOK = 'serviceWorker' in navigator;
+    // version.js 読み込み完了を待つためdeferを指定しているのでここでAPP_VERSIONは使える想定
 
-    document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG');
-    document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG');
-    document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG');
+    const httpsOK = location.protocol === 'https:' || location.hostname === 'localhost'
+    const manifestOK = !!document.querySelector('link[rel="manifest"]')
+    const swOK = 'serviceWorker' in navigator
 
-    const allOK = httpsOK && manifestOK && swOK;
-    document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です');
+    document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG')
+    document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG')
+    document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG')
+
+    const allOK = httpsOK && manifestOK && swOK
+    document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です')
+
+    // アプリバージョン表示
+    document.getElementById('appVersion').textContent = `アプリバージョン: ${APP_VERSION}`
 
     if (swOK) {
       navigator.serviceWorker.register('/pwa-page/sw.js')
         .then(registration => {
-          document.getElementById('isPwa').textContent = 'PWA成立: ✅ Yes（SW登録成功）';
+          document.getElementById('isPwa').textContent = 'PWA成立: ✅ Yes（SW登録成功）'
 
           registration.onupdatefound = () => {
-            console.log('アップデートがあります！');
-            registration.update();
-          };
+            console.log('アップデートがあります！')
+            registration.update()
+          }
+
+          // 登録後にバージョン情報を送信
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'version', version: APP_VERSION })
+          }
 
           document.getElementById('updateCacheBtn').addEventListener('click', () => {
             if (navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage('update');
-              document.getElementById('updateStatus').textContent = '⚙️ 更新処理を開始しました...';
-              console.log('キャッシュ更新メッセージを送信しました');
+              navigator.serviceWorker.controller.postMessage('update')
+              document.getElementById('updateStatus').textContent = '⚙️ 更新処理を開始しました...'
+              console.log('キャッシュ更新メッセージを送信しました')
             }
-          });
+          })
 
           navigator.serviceWorker.addEventListener('message', event => {
             if (event.data === 'update-complete') {
-              document.getElementById('updateStatus').textContent = '✅ キャッシュの更新が完了しました';
-              console.log('キャッシュ更新完了のメッセージを受信しました');
+              document.getElementById('updateStatus').textContent = '✅ キャッシュの更新が完了しました'
+              console.log('キャッシュ更新完了のメッセージを受信しました')
             }
-          });
+          })
         })
         .catch(() => {
-          document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW登録失敗）';
-        });
+          document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW登録失敗）'
+        })
     } else {
-      document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW未対応）';
+      document.getElementById('isPwa').textContent = 'PWA成立: ❌ No（SW未対応）'
     }
 
     function getDisplayMode() {
-      let mode = 'browser（通常のタブ）';
+      let mode = 'browser（通常のタブ）'
 
       if (window.matchMedia('(display-mode: standalone)').matches) {
-        mode = 'standalone（PWAとしてインストール起動）';
+        mode = 'standalone（PWAとしてインストール起動）'
       } else if (navigator.standalone) {
-        mode = 'standalone（iOS Safari）';
+        mode = 'standalone（iOS Safari）'
       }
 
-      document.getElementById('displayMode').textContent = '現在の表示モード: ✅ ' + mode;
+      document.getElementById('displayMode').textContent = '現在の表示モード: ✅ ' + mode
     }
 
-    window.addEventListener('load', getDisplayMode);
+    window.addEventListener('load', getDisplayMode)
   </script>
 </body>
 </html>

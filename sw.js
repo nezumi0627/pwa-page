@@ -1,62 +1,71 @@
-// sw.js
-const CACHE_NAME = 'pwa-cache-v1';
+const CACHE_NAME = 'pwa-cache-v1'
 const urlsToCache = [
   '/',
   '/pwa-page/index.html',
   '/pwa-page/manifest.json',
-  // 他に必要なリソースを追加
-];
+  // 必要に応じて追加
+]
+
+let appVersion = null  // 受け取ったアプリバージョンを保持（任意）
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => Promise.all(
-        urlsToCache.map(url => 
-          fetch(new Request(url, {cache: 'reload'}))
+        urlsToCache.map(url =>
+          fetch(new Request(url, { cache: 'reload' }))
             .then(response => cache.put(url, response))
         )
       ))
       .then(() => self.skipWaiting())
-  );
-});
+  )
+})
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+    caches.keys()
+      .then(keys =>
+        Promise.all(
+          keys.filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
       )
-    ).then(() => self.clients.claim())
-  );
-});
+      .then(() => self.clients.claim())
+  )
+})
 
 self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
-        return response;
+        const responseClone = response.clone()
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone))
+        return response
       })
       .catch(() => caches.match(event.request))
-  );
-});
+  )
+})
 
 self.addEventListener('message', event => {
-  if(event.data === 'update'){
+  if (typeof event.data === 'object' && event.data.type === 'version') {
+    appVersion = event.data.version
+    console.log(`受信したアプリバージョン: ${appVersion}`)
+  }
+
+  if (event.data === 'update') {
     caches.open(CACHE_NAME)
-      .then(cache => {
-        return Promise.all(
+      .then(cache =>
+        Promise.all(
           urlsToCache.map(url =>
-            fetch(new Request(url, {cache: 'reload'}))
+            fetch(new Request(url, { cache: 'reload' }))
               .then(response => cache.put(url, response))
           )
-        );
+        )
+      )
+      .then(async () => {
+        const clients = await self.clients.matchAll()
+        clients.forEach(client => client.postMessage('update-complete'))
       })
-      .then(() => {
-        self.clients.matchAll().then(clients => {
-          clients.forEach(client => client.postMessage('update-complete'));
-        });
-      });
+      .catch(err => console.error('キャッシュ更新エラー:', err))
   }
-});
+})
