@@ -17,8 +17,26 @@
   <p id="result">全体条件: 判定中</p>
   <p id="displayMode">現在の表示モード: 判定中</p>
 
+  <button id="updateBtn">🔄 キャッシュを強制更新</button>
+  <p id="updateStatus"></p>
+
+  <h2>📦 キャッシュ一覧</h2>
+  <ul id="cacheList">読み込み中...</ul>
+
   <script src="/pwa-page/version.js"></script>
   <script>
+    async function displayCacheKeys() {
+      if (!('caches' in window)) return;
+      const keys = await caches.keys();
+      const list = document.getElementById('cacheList');
+      list.innerHTML = '';
+      keys.forEach(key => {
+        const li = document.createElement('li');
+        li.textContent = key;
+        list.appendChild(li);
+      });
+    }
+
     window.addEventListener('load', () => {
       if (typeof APP_VERSION === 'undefined') {
         document.getElementById('appVersion').textContent = 'アプリバージョン: ❌ version.jsが読み込まれていません';
@@ -36,31 +54,46 @@
       document.getElementById('https').textContent = 'HTTPS: ' + (httpsOK ? '✅ OK' : '❌ NG');
       document.getElementById('manifest').textContent = 'Manifest: ' + (manifestOK ? '✅ OK' : '❌ NG');
       document.getElementById('sw').textContent = 'Service Worker: ' + (swOK ? '✅ OK' : '❌ NG');
-
-      const allOK = httpsOK && manifestOK && swOK;
-      document.getElementById('result').textContent = '全体条件: ' + (allOK ? '✅ 条件を満たしています' : '❌ 不完全です');
+      document.getElementById('result').textContent = '全体条件: ' + (httpsOK && manifestOK && swOK ? '✅ 条件を満たしています' : '❌ 不完全です');
 
       if (swOK) {
-        navigator.serviceWorker.register('/pwa-page/sw.js').then(registration => {
-          if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-              type: 'version',
-              version: APP_VERSION
-            });
-          }
-
-          registration.addEventListener('updatefound', () => {
-            const newSW = registration.installing;
-            if (newSW) {
-              newSW.addEventListener('statechange', e => {
-                if (e.target.state === 'installed') {
-                  alert('新しいバージョンがインストールされました。アプリを再起動してください。');
-                }
+        navigator.serviceWorker.register('/pwa-page/sw.js')
+          .then(registration => {
+            if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                type: 'version',
+                version: APP_VERSION
               });
             }
+
+            registration.addEventListener('updatefound', () => {
+              const newSW = registration.installing;
+              if (newSW) {
+                newSW.addEventListener('statechange', e => {
+                  if (e.target.state === 'installed') {
+                    alert('新しいバージョンがインストールされました。再起動してください。');
+                  }
+                });
+              }
+            });
           });
-        }).catch(() => {
-          console.warn('Service Worker登録に失敗しました');
+
+        // 更新ボタン処理
+        document.getElementById('updateBtn').addEventListener('click', () => {
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'force-update' });
+            document.getElementById('updateStatus').textContent = '⚙️ キャッシュ更新を開始しました...';
+          } else {
+            document.getElementById('updateStatus').textContent = '❌ SWコントローラが見つかりません';
+          }
+        });
+
+        // SWから更新完了通知を受け取る
+        navigator.serviceWorker.addEventListener('message', event => {
+          if (event.data === 'update-complete') {
+            document.getElementById('updateStatus').textContent = '✅ キャッシュ更新が完了しました';
+            displayCacheKeys(); // 更新後のキャッシュを再表示
+          }
         });
       }
 
@@ -75,6 +108,7 @@
       };
 
       getDisplayMode();
+      displayCacheKeys();
     });
   </script>
 </body>
