@@ -23,7 +23,13 @@
   <h2>📦 キャッシュ一覧</h2>
   <ul id="cacheList">読み込み中...</ul>
 
+  <h2>📝 名前を入力</h2>
+  <input type="text" id="nameInput" placeholder="名前を入力" />
+  <button id="saveNameBtn">💾 保存</button>
+  <p id="savedNameDisplay"></p>
+
   <script src="/pwa-page/version.js"></script>
+  <script src="/pwa-page/name-demo.js"></script>
   <script>
     async function displayCacheKeys() {
       if (!('caches' in window)) return;
